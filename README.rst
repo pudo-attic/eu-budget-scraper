@@ -34,11 +34,17 @@ basis. This is mostly true for the EU's revenue, i.e. Own Resources.
 Running it
 ----------
 
-Run "scrape.py" to get basic CSV files. Then, use cleanup.py on each of 
-them to do some cleansing. To import into OpenSpending, the following 
-command line is needed: 
+All scripts require a valid webstore config to interact with. To learn about 
+webstore, visit http://wiki.ckan.net/Webstore
 
-paster --plugin=wdmmg csvimport -c $CONFIG --model=file:model.js eu-2010.csv.cleaned
+Run "scrape.py" to extract the basic budget::
+
+  python scrape.py http://user:pass@webstore.thedatahub.org/user/eubduget/main
+
+Then, use cleanup.py on each of do some cleansing. To import into OpenSpending,
+the following command line is needed::
+
+  paster --plugin=openspending csvimport -c $CONFIG --model=file:model.js http://...
 
 License
 -------
