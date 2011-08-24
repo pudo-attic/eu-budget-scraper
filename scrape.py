@@ -5,7 +5,7 @@ from urlparse import urljoin
 from csv import DictWriter
 import json, os, sys, re
 
-from webstore.client import DSN
+from webstore.client import URL as WebStore
 
 BASE = "http://eur-lex.europa.eu/budget/data/D%s_VOL%s/EN/index.html"
 MDASH =  u'—'
@@ -203,8 +203,8 @@ def load_articles(base_url, context):
             yield v
 
 def handle_number(c):
-    try: 
         cell_value = c.text_content().strip()
+    try: 
         #print "NUM", cell_value
         cell_value = re.sub("\(.*\)", "", cell_value)
         cell_value = ''.join([c for c in cell_value if c in "-0123456789,"])
@@ -277,8 +277,9 @@ def handle_table(table):
 
 
 if __name__ == "__main__":
-    db = DSN("eubudget")
-    table = db['raw']
+    assert len(sys.argv)==2, "Need argument: webstore-url!"
+    #process_file(sys.argv[1], sys.argv[2])
+    db, table = WebStore(sys.argv[1], "raw")
     #table.delete()
     for y in [2010, 2009, 2008, 2007, 2006, 2005]:
         load_budget(y, table)

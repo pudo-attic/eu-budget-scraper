@@ -3,7 +3,7 @@ import sys
 from csv import DictReader, DictWriter, field_size_limit
 from pprint import pprint
 
-from webstore.client import DSN
+from webstore.client import URL as WebStore
 
 EXTRA_FIELDS = ['volume_color', 'country_code', 'country_color']
 
@@ -111,9 +111,8 @@ def dependent_column(table, src_column, dst_column, lookup):
         pprint(row)
         table.writerow(row, unique_columns=[src_column])
 
-def extend_budget():
-    db = DSN("eubudget")
-    table = db['raw']
+def extend_budget(url):
+    db, table = WebStore(url, "raw")
     fun = lambda i: VOLUME_COLORS.get(i)
     dependent_column(table, 'volume_name', 
                      'volume_color', fun)
@@ -131,6 +130,6 @@ def extend_budget():
                          expand_code)
 
 if __name__ == '__main__':
-    #assert len(sys.argv)==3, "Need 2 arguments: infile, outfile!"
+    assert len(sys.argv)==2, "Need argument: webstore-url!"
     #process_file(sys.argv[1], sys.argv[2])
-    extend_budget()
+    extend_budget(sys.argv[1])
