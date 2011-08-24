@@ -5,9 +5,13 @@ from urlparse import urljoin
 from csv import DictWriter
 import json, os, sys, re
 
+from webstore.client import DSN
+
 BASE = "http://eur-lex.europa.eu/budget/data/D%s_VOL%s/EN/index.html"
 MDASH =  u'—'
 PREFIXEN = ['Subitem', 'Item', 'Article', 'Chapter', 'Title', 'Volume']
+UNIQUE_COLUMNS = ['time', 'item_name', 'article_name', 'projection', 'flow',
+                  'country', 'volume_name', 'type']
 
 def split_title(title):
     title = title.replace(u'\xa0', ' ')
@@ -24,18 +28,24 @@ def split_title(title):
     #print "NAME", name
     return name.strip(), label.strip()
 
-def load_budget(year):
+def load_budget(year, table):
+    rows = []
     for i in range(10):
         ctx = {'budget_year': year}
         url = BASE % (year, i+1)
         try:
             for v in load_volume(url, ctx):
-                yield v
+                rows.append(v)
+                print map(lambda x: v.get(x), UNIQUE_COLUMNS)
+                if len(rows) % 100 == 0:
+                    table.writerows(rows, unique_columns=UNIQUE_COLUMNS)
+                    rows = []
         except:
             # data protection was only established 2007:
             #if year > 2006 or i != 10:
             #    raise
             pass
+    table.writerows(rows, unique_columns=UNIQUE_COLUMNS)
 
 def load_volume(base_url, context):
     context = context.copy() 
@@ -102,6 +112,7 @@ def load_articles(base_url, context):
                     ctx[prefix + '_legal_basis'] = [n.text_content().strip() for n in nodes]
                 elif section == 'remarks':
                     ctx[prefix + '_description'] = "\n".join([html.tostring(n) for n in nodes])
+            ctx[prefix + '_legal_basis'] = '\n\n'.join(ctx[prefix + '_legal_basis'])
         ctx['article_name'], ctx['article_label'] = split_title(current_article)
         print "    ARTICLE", ctx['article_name']
         apply_metas(article_metas, 'article')
@@ -124,7 +135,7 @@ def load_articles(base_url, context):
         for value in values: 
             value.update(ctx)
             if not 'country' in value:
-                value['country'] = 'EU'
+                value['country'] = 'European Union'
             #if value.get('subitem_name'):
             #    pprint(value)
             if value.get('amount') is not None:
@@ -264,42 +275,10 @@ def handle_table(table):
             #print i, cell
     return values
 
-def to_dir(base_dir, year):
-    dir_name = os.path.join(base_dir, str(year))
-    if not os.path.isdir(dir_name):
-        os.makedirs(dir_name)
-    for i, v in enumerate(load_budget(year)):
-        fn = os.path.join(dir_name, "post_%s_%s.json" % (year, i))
-        fh = open(fn, 'wb')
-        json.dump(v, fh, indent=2)
-        fh.close()
-
-HEADERS = ['article_label', 'projection', 'commitment', 'item_legal_basis', 'chapter_label', 
-           'volume_label', 'title_name', 'item_description', 'subitem_name',
-           'item_name', 'type', 'article_description', 'time', 'subitem_label',
-           'subitem_description', 'item_label', 'article_name', 'country',
-           'flow', 'article_legal_basis', 'amount', 'chapter_name',
-           'subitem_legal_basis', 'budget_year', 'volume_name', 'title_label']
-def to_csv(year):
-    with open('eu-%s.csv' % year, 'wb') as fh:
-        writer = DictWriter(fh, fieldnames=HEADERS)
-        writer.writerow(dict(zip(HEADERS, HEADERS)))
-        for entry in load_budget(year):
-            row = {}
-            for k, v in entry.items():
-                if isinstance(v, (list, tuple)):
-                    v = "\n\n\n".join(v)
-                row[k] = unicode(v).encode('utf-8')
-            writer.writerow(row)
 
 if __name__ == "__main__":
+    db = DSN("eubudget")
+    table = db['raw']
+    #table.delete()
     for y in [2010, 2009, 2008, 2007, 2006, 2005]:
-    #for y in [2010]:
-        #to_dir('eu_budget', y)
-        to_csv(y)
-
-    #p = "http://eur-lex.europa.eu/budget/data/D2009_VOL4/EN/nmc-titleN1000C/nmc-chapterN10015/articles/index.html"
-    #p = "http://eur-lex.europa.eu/budget/data/D2009_VOL4/EN/nmc-titleN188CA/nmc-chapterN19595/articles/index.html"
-    #for x in load_articles(p, {}):
-    #    pass
-    #    #print x
+        load_budget(y, table)

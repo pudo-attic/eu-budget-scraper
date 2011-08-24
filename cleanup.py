@@ -3,6 +3,8 @@ import sys
 from csv import DictReader, DictWriter, field_size_limit
 from pprint import pprint
 
+from webstore.client import DSN
+
 EXTRA_FIELDS = ['volume_color', 'country_code', 'country_color']
 
 CODE_FIELDS = ['title_name', 'subitem_name', 'item_name',
@@ -35,7 +37,8 @@ EU27 = {
     "Sweden": "SE",
     "Spain": "ES",
     "Netherlands": "NL",
-    "United Kingdom": "UK"
+    "United Kingdom": "UK",
+    "European Union": "EU"
 }
 
 EU_COLORS = {
@@ -65,7 +68,8 @@ EU_COLORS = {
     "SE": "#FFA900",
     "ES": "#0969A2",
     "NL": "#FF6F00",
-    "UK": "#062170"
+    "UK": "#062170",
+    "EU": "#003399"
 }
 
 VOLUME_NAMES = {
@@ -97,31 +101,36 @@ VOLUME_COLORS = {
 def expand_code(code):
     return ".".join([p.zfill(2) for p in code.split('.')])
 
-def for_row(row):
-    sys.stdout.write(".")
-    sys.stdout.flush()
-    for col in CODE_FIELDS:
-        row[col] = expand_code(row[col])
-    row['volume_color'] = VOLUME_COLORS.get(row['volume_name'])
-    row['volume_name'] = VOLUME_NAMES.get(row['volume_name'])
-    row['country_code'] = EU27.get(row['country'])
-    row['country_color'] = EU_COLORS.get(row['country_code'])
-    return row
+def dependent_column(table, src_column, dst_column, lookup):
+    print "SRC", src_column, "DST", dst_column
+    for src_value in table.distinct(src_column):
+        value = src_value.get(src_column)
+        dst_value = lookup(value)
+        row = {dst_column: dst_value,
+               src_column: value}
+        pprint(row)
+        table.writerow(row, unique_columns=[src_column])
 
-def process_file(infile, outfile):
-    field_size_limit(100000000)
-    infile = open(infile, 'rb')
-    outfile = open(outfile, 'wb')
-    incsv = DictReader(infile)
-    headers = list(incsv.fieldnames) + EXTRA_FIELDS
-    outcsv = DictWriter(outfile, headers)
-    outcsv.writerow(dict(zip(headers, headers)))
-    print headers
-    for row in incsv:
-         outcsv.writerow(for_row(row))
-    outfile.close()
-    infile.close()
+def extend_budget():
+    db = DSN("eubudget")
+    table = db['raw']
+    fun = lambda i: VOLUME_COLORS.get(i)
+    dependent_column(table, 'volume_name', 
+                     'volume_color', fun)
+    fun = lambda i: VOLUME_NAMES.get(i)
+    dependent_column(table, 'volume_name', 
+                     'volume_normalized_name', fun)
+    fun = lambda i: EU27.get(i)
+    dependent_column(table, 'country', 
+                     'country_code', fun)
+    fun = lambda i: EU_COLORS.get(i)
+    dependent_column(table, 'country_code', 
+                     'country_color', fun)
+    for col in CODE_FIELDS:
+        dependent_column(table, col, col + '_expanded', 
+                         expand_code)
 
 if __name__ == '__main__':
-    assert len(sys.argv)==3, "Need 2 arguments: infile, outfile!"
-    process_file(sys.argv[1], sys.argv[2])
+    #assert len(sys.argv)==3, "Need 2 arguments: infile, outfile!"
+    #process_file(sys.argv[1], sys.argv[2])
+    extend_budget()
