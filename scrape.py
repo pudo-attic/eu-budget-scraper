@@ -37,7 +37,7 @@ def load_budget(year, table):
             for v in load_volume(url, ctx):
                 rows.append(v)
                 print map(lambda x: v.get(x), UNIQUE_COLUMNS)
-                if len(rows) % 100 == 0:
+                if len(rows) > 100:
                     table.writerows(rows, unique_columns=UNIQUE_COLUMNS)
                     rows = []
         except:
